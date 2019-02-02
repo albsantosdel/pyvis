@@ -28,7 +28,8 @@ class Network(object):
                  directed=False,
                  notebook=False,
                  bgcolor="#ffffff",
-                 font_color=False):
+                 font_color=False,
+                 template_path=None):
         """
         :param height: The height of the canvas
         :param width: The width of the canvas
@@ -61,7 +62,10 @@ class Network(object):
         self.node_ids = []
         self.template = None
         self.conf = False
-        self.path = os.path.dirname(__file__) + "/templates/template.html"
+        if template_path is None:
+            self.path = os.path.dirname(__file__) + "/templates/template.html"
+        else:
+            self.path = template_path
         
         if notebook:
             self.prep_notebook()
@@ -392,7 +396,7 @@ class Network(object):
 
         :type name_html: str
         """
-        check_html(name)
+        #check_html(name)
         # here, check if an href is present in the hover data
         use_link_template = False
         for n in self.nodes:
@@ -431,6 +435,47 @@ class Network(object):
 
         if notebook:
             return IFrame(name, width=self.width, height=self.height)
+
+    def generate_html(self, notebook=False):
+        """
+        This method gets the data structures supporting the nodes, edges,
+        and options and updates the template to write the HTML holding
+        the visualization.
+
+        :type name_html: str
+        """
+        # here, check if an href is present in the hover data
+        use_link_template = False
+        for n in self.nodes:
+            title = n.get("title", None)
+            if title:
+                if "href" in title:
+                    """
+                    this tells the template to override default hover
+                    mechanic, as the tooltip would move with the mouse
+                    cursor which made interacting with hover data useless.
+                    """
+                    use_link_template = True
+                    break
+        if not notebook:
+            with open(self.path) as html:
+                content = html.read()
+            template = Template(content)
+        else:
+            template = self.template
+
+        nodes, edges, height, width, options = self.get_network_data()
+        self.html = template.render(height=height,
+                                    width=width,
+                                    nodes=nodes,
+                                    edges=edges,
+                                    options=options,
+                                    use_DOT=self.use_DOT,
+                                    dot_lang=self.dot_lang,
+                                    widget=self.widget,
+                                    bgcolor=self.bgcolor,
+                                    conf=self.conf,
+                                    tooltip_link=use_link_template)
 
     def show(self, name):
         """
@@ -552,14 +597,15 @@ class Network(object):
         """
         assert(isinstance(nx_graph, nx.Graph))
         edges = nx_graph.edges(data=True)
-        nodes = nx_graph.nodes()
+        nodes = nx_graph.nodes(data=True)
         if len(edges) > 0:
-            for e in edges:
-                self.add_node(e[0], e[0], title=str(e[0]))
-                self.add_node(e[1], e[1], title=str(e[1]))
-                self.add_edge(e[0], e[1])
+            for n1,n2,attr in edges:
+                self.add_node(n1, n1, title=n1, color=nodes[n1]['color'])
+                self.add_node(n2, n2, title=n2, color=nodes[n2]['color'])
+                
+                self.add_edge(n1, n2, width=attr['width'])
         else:
-            self.add_nodes(nodes)
+            self.add_nodes(nodes.keys)
 
     def get_nodes(self):
         """
